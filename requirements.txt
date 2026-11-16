@@ -6,5 +6,5 @@ pillow
 pandas
 openpyxl
 qwen-vl-utils
-# Colab/CUDA 환경에서는:
-# bitsandbytes
+
+bitsandbytes #Colab에서 돌릴 때, mac일 경우 제외 
