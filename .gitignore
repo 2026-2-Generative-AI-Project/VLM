@@ -8,6 +8,9 @@ images_raw/
 *.webp
 
 
+data/*.jsonl
+data_list.jsonl
+
 # 학습 모델
 qwen_vl_lora/
 qwen_vl_lora_mac/
