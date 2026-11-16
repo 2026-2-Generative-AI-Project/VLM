@@ -7,7 +7,7 @@ Qwen2.5-VL-3B 파인튜닝 — 음식 사진 + 상황 설명 → 마케팅 JSON(
 
 ```
 VLM/
-├── data/data_list.jsonl         # 학습 데이터 240개
+├── data/        # (data_list.jsonl - 드라이브)
 ├── data_prep/dataset.ipynb      # 데이터셋 구성
 ├── Qwen/qwen_vl_inference.ipynb # 베이스 모델 추론
 └── finetune/
