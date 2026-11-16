@@ -1,3 +1,59 @@
+# 이미지
+images/
+images_raw/
+*.jpg
+*.jpeg
+*.png
+*.PNG
+*.webp
+
+
+# 학습 모델
+qwen_vl_lora/
+qwen_vl_lora_mac/
+*.safetensors
+*.bin
+*.pt
+*.ckpt
+checkpoint-*/
+adapter_model.*
+adapter_config.json
+
+
+# 캐시 / 임시 파일
+
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+*.pyo
+.cache/
+.pytest_cache/
+
+
+# Mac 시스템
+.DS_Store
+.AppleDouble
+.LSOverride
+
+
+# 가상환경
+.venv/
+venv/
+env/
+
+
+# 대용량 압축
+*.zip
+*.tar
+*.gz
+
+
+# 비밀/개인 정보
+.env
+*.key
+secrets.json
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
