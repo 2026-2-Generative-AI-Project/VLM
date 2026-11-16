@@ -1,0 +1,10 @@
+transformers>=4.49
+accelerate
+peft
+torchvision
+pillow
+pandas
+openpyxl
+qwen-vl-utils
+# Colab/CUDA 환경에서는:
+# bitsandbytes
