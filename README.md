@@ -31,7 +31,29 @@ VLM/
     {"role": "assistant", "content": "{...정답 JSON...}"}
   ]
 }
+
 ```
+# 출력 스키마
+
+```json
+{
+  "sd_prompt": "string (영문, 이미지 생성 프롬프트)",
+  "negative_prompt": "string (영문)",
+  "ad_copy": "string (한국어, 짧은 광고 카피)",
+  "strategy_reason": "string (한국어, 전략 설명)",
+  "aspect_ratio": "1:1 | 4:5 | 9:16"
+}
+```
+
++)
+| 필드 | 설명 |
+|---|---|
+| `sd_prompt` | 이미지 생성용 영문 프롬프트. 필수 키워드 `realistic soft drop shadow under the food, natural directional lighting` 포함 |
+| `negative_prompt` | 피할 요소 (기본: `text, words, watermark, ...`) |
+| `ad_copy` | 이미지 위에 **별도로 얹을** 한국어 카피 (이미지 안에 텍스트 생성 X) |
+| `strategy_reason` | 전략 의도 설명 |
+| `aspect_ratio` | `1:1` 피드 / `4:5` 세로 피드 / `9:16` 스토리 |
+
 
 
 # 🚀 실행
