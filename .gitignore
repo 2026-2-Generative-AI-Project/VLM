@@ -13,7 +13,7 @@ data_list.jsonl
 
 # 학습 모델
 qwen_vl_lora/
-qwen_vl_lora_mac/
+qwen/qwen_vl_lora_mac/checkpoint-*/
 *.safetensors
 *.bin
 *.pt
@@ -277,3 +277,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+#예외설정
+!qwen/qwen_vl_lora_mac/adapter_model.safetensors
+!qwen/qwen_vl_lora_mac/adapter_config.json
+!qwen/qwen_vl_lora_mac/training_args.bin
