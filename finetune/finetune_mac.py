@@ -8,12 +8,11 @@ Qwen2.5-VL-3B-Instruct JSON 파인튜닝 (QLoRA)
         ./data_list.py         ← 데이터 파일(240장)
         ./images/              ← 누끼 PNG 100장 (edge_fail_01.PNG ~ food_tteok_03.PNG)
     3. 실행: python finetune.py
-    4. 결과: ./qwen_vl_lora/ 폴더에 LoRA 어댑터 저장
+    4. 결과: ./qwen_vl_lora_v4/ 폴더에 LoRA 어댑터 저장
 
 +) mac버전 - 4bit 양자화 x
 
 """
-
 import os, re, json, random
 import torch
 from PIL import Image
@@ -21,16 +20,17 @@ from torch.utils.data import Dataset
 from transformers import (
     Qwen2_5_VLForConditionalGeneration,
     AutoProcessor,
-    BitsAndBytesConfig,
+  #  BitsAndBytesConfig,
     TrainingArguments,
     Trainer,
 )
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, PeftModel
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
 # =====================================================
 # data_list.jsonl 에서 로드
 # =====================================================
-JSONL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data_list.jsonl")
+JSONL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dataset.jsonl")
 
 data_list = []
 system_prompt = None
@@ -75,7 +75,7 @@ print(f"JSONL 로드 완료: {len(data_list)}개 샘플")
 MODEL_ID   = "Qwen/Qwen2.5-VL-3B-Instruct"
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))   # 현재 스크립트 위치
 IMAGE_DIR  = os.path.join(BASE_DIR, "images")
-OUTPUT_DIR = os.path.join(BASE_DIR, "qwen_vl_lora")
+OUTPUT_DIR = os.path.join(BASE_DIR, "qwen_vl_lora_v4")
 
 MAX_SIDE   = 512
 MAX_PIXELS = 512 * 512
@@ -86,8 +86,12 @@ BATCH_SIZE = 1
 GRAD_ACCUM = 8   # 실질 배치 = 8
 LR         = 2e-4
 
-# T4는 bfloat16 미지원 → float16 자동 선택
-COMPUTE_DTYPE = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+if torch.backends.mps.is_available():
+    COMPUTE_DTYPE = torch.bfloat16  # M4 Max는 BF16 네이티브 지원
+elif torch.cuda.is_available():
+    COMPUTE_DTYPE = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+else:
+    COMPUTE_DTYPE = torch.float32
 
 random.seed(SEED)
 torch.manual_seed(SEED)
@@ -104,14 +108,27 @@ print("=" * 60)
 # =====================================================
 # 2. 이미지 전처리 (회색 배경 변환)
 # =====================================================
+def find_image(name):
+    """누끼 PNG 우선, 없으면 jpg"""
+    stem = os.path.splitext(os.path.basename(name))[0]
+    for ext in (".png", ".PNG", ".jpg", ".jpeg", ".JPG"):
+        p = os.path.join(IMAGE_DIR, stem + ext)
+        if os.path.exists(p):
+            return p
+    return None
+
 def preprocess_image(path):
     img = Image.open(path)
-    img.thumbnail((MAX_SIDE, MAX_SIDE))
     if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
         img = img.convert("RGBA")
+        bbox = img.getchannel("A").getbbox()      # 메인 노트북 cutout_crop와 같게 음식 부분만
+        if bbox:
+            img = img.crop(bbox)
+        img.thumbnail((MAX_SIDE, MAX_SIDE))
         gray_bg = Image.new("RGB", img.size, (128, 128, 128))
         gray_bg.paste(img, mask=img.split()[3])
         return gray_bg
+    img.thumbnail((MAX_SIDE, MAX_SIDE))
     return img.convert("RGB")
 
 # =====================================================
@@ -119,11 +136,9 @@ def preprocess_image(path):
 # =====================================================
 samples, skipped = [], []
 for i, item in enumerate(data_list):
-    img_name = os.path.basename(item["image"])
-    img_name = img_name.replace(".PNG", ".jpg").replace(".png", ".jpg")
-    img_path = os.path.join(IMAGE_DIR, img_name)
-    if not os.path.exists(img_path):
-        skipped.append((i, img_name))
+    img_path = find_image(item["image"])
+    if img_path is None:
+        skipped.append((i, item["image"]))
         continue
     samples.append({
         "image_path": img_path,
@@ -131,14 +146,19 @@ for i, item in enumerate(data_list):
         "target_json": json.dumps(item["assistant_json"], ensure_ascii=False, indent=2),
     })
 
-print(f"\n유효 샘플: {len(samples)} / 제외: {len(skipped)}")
+n_png = sum(s["image_path"].lower().endswith(".png") for s in samples)
+print(f"누끼 PNG: {n_png} / {len(samples)}") 
 if skipped:
     print("제외된 이미지 (첫 5개):", [s[1] for s in skipped[:5]])
 
-random.shuffle(samples)
-n_eval = max(1, int(len(samples) * EVAL_RATIO)) if len(samples) >= 10 else 0
-eval_samples, train_samples = samples[:n_eval], samples[n_eval:]
-print(f"train: {len(train_samples)} / eval: {len(eval_samples)}")
+
+imgs = sorted({s["image_path"] for s in samples})
+random.shuffle(imgs)
+eval_imgs = set(imgs[:max(1, int(len(imgs) * EVAL_RATIO))])
+eval_samples  = [s for s in samples if s["image_path"] in eval_imgs]
+train_samples = [s for s in samples if s["image_path"] not in eval_imgs]
+random.shuffle(train_samples)
+print(f"train: {len(train_samples)} / eval: {len(eval_samples)} (eval 사진 {len(eval_imgs)}장)")
 
 
 class VLMDataset(Dataset):
@@ -242,6 +262,9 @@ args = TrainingArguments(
     remove_unused_columns=False,
     dataloader_pin_memory=False,
     report_to="none",
+    load_best_model_at_end=True,
+    metric_for_best_model="eval_loss",
+    greater_is_better=False,
 )
 
 trainer = Trainer(
@@ -293,5 +316,8 @@ for ex in test_items:
     print("파싱:", "성공" if parsed else "실패")
     if parsed:
         print(json.dumps(parsed, ensure_ascii=False, indent=2))
+        sd, neg = parsed.get("sd_prompt", ""), parsed.get("negative_prompt", "")
+        print("새 그림자 문구:", "soft contact shadow" in sd, "| 예전 문구:", "under the food" in sd,
+              "| duplicate food:", "duplicate food" in neg)
     else:
         print(raw)
